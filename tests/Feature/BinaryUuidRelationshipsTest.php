@@ -1,414 +1,373 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
+use Dyrynda\Database\Support\LaravelModelUuidServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use Ramsey\Uuid\Uuid;
 use Tests\Fixtures\BinaryUuidPost;
 use Tests\Fixtures\BinaryUuidProfile;
 use Tests\Fixtures\BinaryUuidUser;
 
-class BinaryUuidRelationshipsTest extends TestCase
-{
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Create test tables with binary UUID columns
-        Schema::create('binary_uuid_users', function (Blueprint $table) {
-            $table->binary('id', 16)->primary();
-            $table->string('name');
-        });
-
-        Schema::create('binary_uuid_posts', function (Blueprint $table) {
-            $table->id();
-            $table->binary('user_id', 16);
-            $table->foreign('user_id')->references('id')->on('binary_uuid_users')->onDelete('cascade');
-            $table->string('title');
-        });
-
-        Schema::create('binary_uuid_profiles', function (Blueprint $table) {
-            $table->id();
-            $table->binary('user_id', 16)->unique();
-            $table->foreign('user_id')->references('id')->on('binary_uuid_users')->onDelete('cascade');
-            $table->string('bio');
-        });
-    }
-
-    protected function tearDown(): void
-    {
-        Schema::dropIfExists('binary_uuid_profiles');
-        Schema::dropIfExists('binary_uuid_posts');
-        Schema::dropIfExists('binary_uuid_users');
-
-        parent::tearDown();
-    }
-
-    #[Test]
-    public function it_can_create_model_with_binary_uuid_primary_key()
-    {
-        $user = BinaryUuidUser::create(['name' => 'John Doe']);
-
-        $this->assertNotNull($user->id);
-        $this->assertIsString($user->id);
-        $this->assertTrue(\Ramsey\Uuid\Uuid::isValid($user->id));
-    }
-
-    #[Test]
-    public function it_can_query_by_uuid_using_where_uuid_scope()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Jane Doe']);
-
-        $found = BinaryUuidUser::whereUuid($user->id, 'id')->first();
-
-        $this->assertNotNull($found);
-        $this->assertEquals($user->id, $found->id);
-    }
-
-    #[Test]
-    public function it_handles_belongs_to_relationship_with_binary_uuid()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Author']);
-
-        $post = BinaryUuidPost::create([
-            'user_id' => $user->id,
-            'title' => 'Test Post',
-        ]);
-
-        // Lazy loading - refresh to simulate loading from database
-        $post = BinaryUuidPost::find($post->id);
-        $loadedUser = $post->user;
-
-        $this->assertNotNull($loadedUser, 'belongsTo relationship should work');
-        $this->assertEquals($user->id, $loadedUser->id);
-        $this->assertEquals('Author', $loadedUser->name);
-    }
-
-    #[Test]
-    public function it_handles_has_many_relationship_with_binary_uuid()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Author']);
-
-        BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 1']);
-        BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 2']);
-        BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 3']);
-
-        // Refresh to test lazy loading from database
-        $user = BinaryUuidUser::find($user->id);
-        $posts = $user->posts;
-
-        $this->assertCount(3, $posts, 'hasMany relationship should return all related records');
-        $this->assertEquals('Post 1', $posts[0]->title);
-        $this->assertEquals('Post 2', $posts[1]->title);
-        $this->assertEquals('Post 3', $posts[2]->title);
-    }
-
-    #[Test]
-    public function it_handles_has_one_relationship_with_binary_uuid()
-    {
-        $user = BinaryUuidUser::create(['name' => 'John']);
-
-        BinaryUuidProfile::create([
-            'user_id' => $user->id,
-            'bio' => 'Software developer',
-        ]);
-
-        // Refresh to test lazy loading
-        $user = BinaryUuidUser::find($user->id);
-        $profile = $user->profile;
-
-        $this->assertNotNull($profile, 'hasOne relationship should work');
-        $this->assertEquals('Software developer', $profile->bio);
-        $this->assertEquals($user->id, $profile->user_id);
-    }
-
-    #[Test]
-    public function it_handles_eager_loading_with_binary_uuid()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-
-        BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.1']);
-        BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.2']);
-        BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'Post 2.1']);
-
-        // Eager loading - This uses WHERE IN with multiple UUIDs
-        $posts = BinaryUuidPost::with('user')->get();
-
-        $this->assertCount(3, $posts);
-        $posts->each(function ($post) {
-            $this->assertNotNull($post->user, 'Eager loaded user should not be null');
-            $this->assertInstanceOf(BinaryUuidUser::class, $post->user);
-        });
-    }
-
-    #[Test]
-    public function it_handles_reverse_eager_loading_with_binary_uuid()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-
-        BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.1']);
-        BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.2']);
-        BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'Post 2.1']);
-
-        // Eager load posts on users
-        $users = BinaryUuidUser::with('posts')->get();
-
-        $this->assertCount(2, $users);
-        $this->assertCount(2, $users[0]->posts);
-        $this->assertCount(1, $users[1]->posts);
-    }
-
-    #[Test]
-    public function it_correctly_converts_uuid_in_where_in_queries()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-        $user3 = BinaryUuidUser::create(['name' => 'User 3']);
-
-        // Query with multiple UUIDs
-        $found = BinaryUuidUser::whereIn('id', [
-            $user1->id,
-            $user3->id,
-        ])->get();
-
-        $this->assertCount(2, $found);
-        $this->assertTrue($found->contains('id', $user1->id));
-        $this->assertTrue($found->contains('id', $user3->id));
-        $this->assertFalse($found->contains('id', $user2->id));
-    }
-
-    #[Test]
-    public function it_handles_where_queries_with_binary_uuid()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Test User']);
-
-        // Standard WHERE query (not using whereUuid)
-        $found = BinaryUuidUser::where('id', $user->id)->first();
-
-        $this->assertNotNull($found, 'WHERE query with UUID string should work');
-        $this->assertEquals($user->id, $found->id);
-    }
-
-    #[Test]
-    public function it_does_not_break_non_uuid_queries()
-    {
-        $user = BinaryUuidUser::create(['name' => 'John']);
-
-        // Query on non-UUID column should work normally
-        $found = BinaryUuidUser::where('name', 'John')->first();
-
-        $this->assertNotNull($found);
-        $this->assertEquals('John', $found->name);
-    }
-
-    #[Test]
-    public function it_preserves_existing_where_uuid_functionality()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Test']);
-
-        // The existing whereUuid scope should still work
-        $found1 = BinaryUuidUser::whereUuid($user->id, 'id')->first();
-
-        // And now regular where should also work
-        $found2 = BinaryUuidUser::where('id', $user->id)->first();
-
-        $this->assertNotNull($found1);
-        $this->assertNotNull($found2);
-        $this->assertEquals($found1->id, $found2->id);
-    }
-
-    #[Test]
-    public function it_handles_eager_loading_with_has_one_relationship()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-
-        BinaryUuidProfile::create(['user_id' => $user1->id, 'bio' => 'Bio 1']);
-        BinaryUuidProfile::create(['user_id' => $user2->id, 'bio' => 'Bio 2']);
-
-        $users = BinaryUuidUser::with('profile')->get();
-
-        $this->assertCount(2, $users);
-        $users->each(function ($user) {
-            $this->assertNotNull($user->profile, 'Eager loaded profile should not be null');
-            $this->assertInstanceOf(BinaryUuidProfile::class, $user->profile);
-        });
-    }
-
-    #[Test]
-    public function it_handles_where_not_in_with_binary_uuid()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-        $user3 = BinaryUuidUser::create(['name' => 'User 3']);
-
-        // Exclude specific UUIDs
-        $found = BinaryUuidUser::whereNotIn('id', [
-            $user1->id,
-            $user3->id,
-        ])->get();
-
-        $this->assertCount(1, $found);
-        $this->assertEquals($user2->id, $found->first()->id);
-        $this->assertFalse($found->contains('id', $user1->id));
-        $this->assertFalse($found->contains('id', $user3->id));
-    }
-
-    #[Test]
-    public function it_handles_where_with_different_operators()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-
-        // Test != operator
-        $found = BinaryUuidUser::where('id', '!=', $user1->id)->get();
-
-        $this->assertCount(1, $found);
-        $this->assertEquals($user2->id, $found->first()->id);
-    }
-
-    #[Test]
-    public function it_handles_where_with_qualified_column_name()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Test User']);
-
-        // Query with table.column syntax
-        $found = BinaryUuidUser::where('binary_uuid_users.id', $user->id)->first();
-
-        $this->assertNotNull($found, 'WHERE with qualified column name should work');
-        $this->assertEquals($user->id, $found->id);
-    }
-
-    #[Test]
-    public function it_handles_where_with_invalid_uuid_string()
-    {
-        BinaryUuidUser::create(['name' => 'Valid User']);
-
-        // Query with non-UUID string should not crash, just return no results
-        $found = BinaryUuidUser::where('id', 'not-a-valid-uuid')->get();
-
-        $this->assertCount(0, $found, 'Invalid UUID should not match any records');
-    }
-
-    #[Test]
-    public function it_handles_where_with_non_string_values()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Test User']);
-
-        // WHERE with integer value on UUID column - should not crash
-        $foundInt = BinaryUuidUser::where('id', 123)->get();
-        $this->assertCount(0, $foundInt);
-
-        // WHERE with null value
-        $foundNull = BinaryUuidUser::where('id', null)->get();
-        $this->assertCount(0, $foundNull);
-
-        // Normal WHERE on name column should still work
-        $foundName = BinaryUuidUser::where('name', 'Test User')->first();
-        $this->assertNotNull($foundName);
-    }
-
-    #[Test]
-    public function it_handles_where_in_with_empty_array()
-    {
-        BinaryUuidUser::create(['name' => 'User 1']);
-        BinaryUuidUser::create(['name' => 'User 2']);
-
-        // WHERE IN with empty array should return no results
-        $found = BinaryUuidUser::whereIn('id', [])->get();
-
-        $this->assertCount(0, $found);
-    }
-
-    #[Test]
-    public function it_handles_where_in_with_mixed_valid_invalid_uuids()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-
-        // Mix of valid UUIDs and invalid strings
-        $found = BinaryUuidUser::whereIn('id', [
-            $user1->id,
-            'not-a-uuid',
-            $user2->id,
-            'also-not-uuid',
-        ])->get();
-
-        // Should only find the valid UUIDs
-        $this->assertCount(2, $found);
-        $this->assertTrue($found->contains('id', $user1->id));
-        $this->assertTrue($found->contains('id', $user2->id));
-    }
-
-    #[Test]
-    public function it_handles_or_where_with_binary_uuid()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'User 1']);
-        $user2 = BinaryUuidUser::create(['name' => 'User 2']);
-        $user3 = BinaryUuidUser::create(['name' => 'User 3']);
-
-        // Query with orWhere
-        $found = BinaryUuidUser::where('id', $user1->id)
-            ->orWhere('id', $user3->id)
-            ->get();
-
-        $this->assertCount(2, $found);
-        $this->assertTrue($found->contains('id', $user1->id));
-        $this->assertTrue($found->contains('id', $user3->id));
-        $this->assertFalse($found->contains('id', $user2->id));
-    }
-
-    #[Test]
-    public function it_handles_where_shorthand_syntax()
-    {
-        $user = BinaryUuidUser::create(['name' => 'Test User']);
-
-        // WHERE with 2 arguments (shorthand for =)
-        $found = BinaryUuidUser::where('id', $user->id)->first();
-
-        $this->assertNotNull($found, 'WHERE shorthand syntax should work');
-        $this->assertEquals($user->id, $found->id);
-    }
-
-    #[Test]
-    public function it_handles_complex_nested_queries()
-    {
-        $user1 = BinaryUuidUser::create(['name' => 'Admin']);
-        $user2 = BinaryUuidUser::create(['name' => 'User']);
-
-        BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Admin Post']);
-        BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'User Post']);
-
-        // Complex query with WHERE and relationships
-        $posts = BinaryUuidPost::where('title', 'LIKE', '%Post%')
-            ->whereIn('user_id', [$user1->id, $user2->id])
-            ->with('user')
-            ->get();
-
-        $this->assertCount(2, $posts);
-        $posts->each(function ($post) {
-            $this->assertNotNull($post->user);
-        });
-    }
-
-    protected function getPackageProviders($app)
-    {
-        return [
-            \Dyrynda\Database\Support\LaravelModelUuidServiceProvider::class,
-        ];
-    }
-
-    protected function getEnvironmentSetUp($app)
-    {
-        $app['config']->set('database.default', 'testing');
-        $app['config']->set('database.connections.testing', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'prefix' => '',
-        ]);
-    }
-}
+beforeEach(function () {
+    // Create test tables with binary UUID columns
+    Schema::create('binary_uuid_users', function (Blueprint $table) {
+        $table->binary('id', 16)->primary();
+        $table->string('name');
+    });
+
+    Schema::create('binary_uuid_posts', function (Blueprint $table) {
+        $table->id();
+        $table->binary('user_id', 16);
+        $table->foreign('user_id')->references('id')->on('binary_uuid_users')->onDelete('cascade');
+        $table->string('title');
+    });
+
+    Schema::create('binary_uuid_profiles', function (Blueprint $table) {
+        $table->id();
+        $table->binary('user_id', 16)->unique();
+        $table->foreign('user_id')->references('id')->on('binary_uuid_users')->onDelete('cascade');
+        $table->string('bio');
+    });
+});
+
+afterEach(function () {
+    Schema::dropIfExists('binary_uuid_profiles');
+    Schema::dropIfExists('binary_uuid_posts');
+    Schema::dropIfExists('binary_uuid_users');
+
+});
+
+it('can create model with binary uuid primary key', function () {
+    $user = BinaryUuidUser::create(['name' => 'John Doe']);
+
+    expect($user)
+        ->id->not->toBeNull()
+        ->id->toBeString();
+
+    expect(Uuid::isValid($user->id))->toBeTrue();
+});
+
+it('can query by uuid using where uuid scope', function () {
+    $user = BinaryUuidUser::create(['name' => 'Jane Doe']);
+
+    $found = BinaryUuidUser::whereUuid($user->id, 'id')->first();
+
+    expect($found)
+        ->not->toBeNull()
+        ->id->toEqual($user->id);
+});
+
+it('handles belongs to relationship with binary uuid', function () {
+    $user = BinaryUuidUser::create(['name' => 'Author']);
+
+    $post = BinaryUuidPost::create([
+        'user_id' => $user->id,
+        'title' => 'Test Post',
+    ]);
+
+    // Lazy loading - refresh to simulate loading from database
+    $post = BinaryUuidPost::find($post->id);
+    $loadedUser = $post->user;
+
+    expect($loadedUser)
+        ->not->toBeNull('belongsTo relationship should work')
+        ->id->toEqual($user->id)
+        ->name->toEqual('Author');
+});
+
+it('handles has many relationship with binary uuid', function () {
+    $user = BinaryUuidUser::create(['name' => 'Author']);
+
+    BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 1']);
+    BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 2']);
+    BinaryUuidPost::create(['user_id' => $user->id, 'title' => 'Post 3']);
+
+    // Refresh to test lazy loading from database
+    $user = BinaryUuidUser::find($user->id);
+    $posts = $user->posts;
+
+    expect($posts)
+        ->toHaveCount(3, 'hasMany relationship should return all related records');
+
+    expect($posts[0])->title->toEqual('Post 1');
+    expect($posts[1])->title->toEqual('Post 2');
+    expect($posts[2])->title->toEqual('Post 3');
+});
+
+it('handles has one relationship with binary uuid', function () {
+    $user = BinaryUuidUser::create(['name' => 'John']);
+
+    BinaryUuidProfile::create([
+        'user_id' => $user->id,
+        'bio' => 'Software developer',
+    ]);
+
+    // Refresh to test lazy loading
+    $user = BinaryUuidUser::find($user->id);
+    $profile = $user->profile;
+
+    expect($profile)
+        ->not->toBeNull('hasOne relationship should work')
+        ->bio->toEqual('Software developer')
+        ->user_id->toEqual($user->id);
+});
+
+it('handles eager loading with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.1']);
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.2']);
+    BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'Post 2.1']);
+
+    // Eager loading - This uses WHERE IN with multiple UUIDs
+    $posts = BinaryUuidPost::with('user')->get();
+
+    expect($posts)->toHaveCount(3);
+
+    $posts->each(function ($post) {
+        expect($post)->user->not->toBeNull('Eager loaded user should not be null');
+        expect($post)->user->toBeInstanceOf(BinaryUuidUser::class);
+    });
+});
+
+it('handles reverse eager loading with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.1']);
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.2']);
+    BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'Post 2.1']);
+
+    // Eager load posts on users
+    $users = BinaryUuidUser::with('posts')->get();
+
+    expect($users)->toHaveCount(2);
+
+    expect($users[0])->posts->toHaveCount(2);
+    expect($users[1])->posts->toHaveCount(1);
+});
+
+it('correctly converts uuid in where in queries', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+    $user3 = BinaryUuidUser::create(['name' => 'User 3']);
+
+    // Query with multiple UUIDs
+    $found = BinaryUuidUser::whereIn('id', [
+        $user1->id,
+        $user3->id,
+    ])->get();
+
+    expect($found)
+        ->toHaveCount(2)
+        ->contains('id', $user1->id)->toBeTrue()
+        ->contains('id', $user3->id)->toBeTrue()
+        ->contains('id', $user2->id)->toBeFalse();
+});
+
+it('handles where queries with binary uuid', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+
+    // Standard WHERE query (not using whereUuid)
+    $found = BinaryUuidUser::where('id', $user->id)->first();
+
+    expect($found)
+        ->not->toBeNull('WHERE query with UUID string should work')
+        ->id->toEqual($user->id);
+});
+
+it('does not break non uuid queries', function () {
+    $user = BinaryUuidUser::create(['name' => 'John']);
+
+    // Query on non-UUID column should work normally
+    $found = BinaryUuidUser::where('name', 'John')->first();
+
+    expect($found)
+        ->not->toBeNull()
+        ->name->toEqual('John');
+});
+
+it('preserves existing where uuid functionality', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test']);
+
+    // The existing whereUuid scope should still work
+    $found1 = BinaryUuidUser::whereUuid($user->id, 'id')->first();
+
+    // And now regular where should also work
+    $found2 = BinaryUuidUser::where('id', $user->id)->first();
+
+    expect($found1)->not->toBeNull();
+
+    expect($found2)
+        ->not->toBeNull()
+        ->id->toEqual($found1->id);
+});
+
+it('handles eager loading with has one relationship', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+
+    BinaryUuidProfile::create(['user_id' => $user1->id, 'bio' => 'Bio 1']);
+    BinaryUuidProfile::create(['user_id' => $user2->id, 'bio' => 'Bio 2']);
+
+    $users = BinaryUuidUser::with('profile')->get();
+
+    expect($users)->toHaveCount(2);
+
+    $users->each(function ($user) {
+        expect($user)
+            ->profile->not->toBeNull('Eager loaded profile should not be null')
+            ->profile->toBeInstanceOf(BinaryUuidProfile::class);
+    });
+});
+
+it('handles where not in with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+    $user3 = BinaryUuidUser::create(['name' => 'User 3']);
+
+    // Exclude specific UUIDs
+    $found = BinaryUuidUser::whereNotIn('id', [
+        $user1->id,
+        $user3->id,
+    ])->get();
+
+    expect($found)->toHaveCount(1);
+
+    expect($found)
+        ->first()->id->toEqual($user2->id)
+        ->contains('id', $user1->id)->toBeFalse()
+        ->contains('id', $user3->id)->toBeFalse();
+});
+
+it('handles where with different operators', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+
+    // Test != operator
+    $found = BinaryUuidUser::where('id', '!=', $user1->id)->get();
+
+    expect($found)
+        ->toHaveCount(1)
+        ->first()->id->toEqual($user2->id);
+});
+
+it('handles where with qualified column name', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+
+    // Query with table.column syntax
+    $found = BinaryUuidUser::where('binary_uuid_users.id', $user->id)->first();
+
+    expect($found)
+        ->not->toBeNull('WHERE with qualified column name should work')
+        ->id->toEqual($user->id);
+});
+
+it('handles where with invalid uuid string', function () {
+    BinaryUuidUser::create(['name' => 'Valid User']);
+
+    // Query with non-UUID string should not crash, just return no results
+    $found = BinaryUuidUser::where('id', 'not-a-valid-uuid')->get();
+
+    expect($found)
+        ->toHaveCount(0, 'Invalid UUID should not match any records');
+});
+
+it('handles where with non string values', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+
+    // WHERE with integer value on UUID column - should not crash
+    $foundInt = BinaryUuidUser::where('id', 123)->get();
+    expect($foundInt)->toHaveCount(0);
+
+    // WHERE with null value
+    $foundNull = BinaryUuidUser::where('id', null)->get();
+    expect($foundNull)->toHaveCount(0);
+
+    // Normal WHERE on name column should still work
+    $foundName = BinaryUuidUser::where('name', 'Test User')->first();
+    expect($foundName)->not->toBeNull();
+});
+
+it('handles where in with empty array', function () {
+    BinaryUuidUser::create(['name' => 'User 1']);
+    BinaryUuidUser::create(['name' => 'User 2']);
+
+    // WHERE IN with empty array should return no results
+    $found = BinaryUuidUser::whereIn('id', [])->get();
+
+    expect($found)->toHaveCount(0);
+});
+
+it('handles where in with mixed valid invalid uuids', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+
+    // Mix of valid UUIDs and invalid strings
+    $found = BinaryUuidUser::whereIn('id', [
+        $user1->id,
+        'not-a-uuid',
+        $user2->id,
+        'also-not-uuid',
+    ])->get();
+
+    // Should only find the valid UUIDs
+    expect($found)
+        ->toHaveCount(2)
+        ->contains('id', $user1->id)->toBeTrue()
+        ->contains('id', $user2->id)->toBeTrue();
+});
+
+it('handles or where with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    $user2 = BinaryUuidUser::create(['name' => 'User 2']);
+    $user3 = BinaryUuidUser::create(['name' => 'User 3']);
+
+    // Query with orWhere
+    $found = BinaryUuidUser::where('id', $user1->id)
+        ->orWhere('id', $user3->id)
+        ->get();
+
+    expect($found)
+        ->toHaveCount(2)
+        ->contains('id', $user1->id)->toBeTrue()
+        ->contains('id', $user3->id)->toBeTrue()
+        ->contains('id', $user2->id)->toBeFalse();
+});
+
+it('handles where shorthand syntax', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+
+    // WHERE with 2 arguments (shorthand for =)
+    $found = BinaryUuidUser::where('id', $user->id)->first();
+
+    expect($found)
+        ->not->toBeNull('WHERE shorthand syntax should work')
+        ->id->toEqual($user->id);
+});
+
+it('handles complex nested queries', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'Admin']);
+    $user2 = BinaryUuidUser::create(['name' => 'User']);
+
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Admin Post']);
+    BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'User Post']);
+
+    // Complex query with WHERE and relationships
+    $posts = BinaryUuidPost::where('title', 'LIKE', '%Post%')
+        ->whereIn('user_id', [$user1->id, $user2->id])
+        ->with('user')
+        ->get();
+
+    expect($posts)->toHaveCount(2);
+
+    $posts->each(function ($post) {
+        expect($post)->user->not->toBeNull();
+    });
+});
+
+    ]);
