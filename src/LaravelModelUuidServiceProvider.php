@@ -29,17 +29,12 @@ class LaravelModelUuidServiceProvider extends PackageServiceProvider
     public function packageRegistered()
     {
         Grammar::macro('typeEfficientUuid', function (Fluent $column) {
-            if ($this instanceof MySqlGrammar) {
-                return sprintf('binary(%d)', $column->length ?? 16);
-            }
-            if ($this instanceof PostgresGrammar) {
-                return 'bytea';
-            }
-            if ($this instanceof SQLiteGrammar) {
-                return 'blob(256)';
-            }
-
-            throw new UnknownGrammarClass;
+            return match (true) {
+                $this instanceof MySqlGrammar => sprintf('binary(%d)', $column->length ?? 16),
+                $this instanceof PostgresGrammar => 'bytea',
+                $this instanceof SQLiteGrammar => 'blob(256)',
+                default => throw new UnknownGrammarClass
+            };
         });
 
         Blueprint::macro('efficientUuid', function ($column): ColumnDefinition {
