@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Dyrynda\Database\Support;
 
+use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Ramsey\Uuid\Uuid;
 
@@ -26,7 +27,7 @@ class BinaryUuidBuilder extends Builder
      * Automatically converts UUID strings to binary when querying
      * columns that use the EfficientUuid cast.
      *
-     * @param  \Closure|string|array<mixed>|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  \Closure|string|array<mixed>|Expression  $column
      * @param  mixed  $operator
      * @param  mixed  $value
      * @param  string  $boolean
@@ -59,7 +60,7 @@ class BinaryUuidBuilder extends Builder
      * Automatically converts arrays of UUID strings to binary format.
      * This is crucial for eager loading (with()) and other bulk queries.
      *
-     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @param  Expression|string  $column
      * @param  mixed  $values
      * @param  string  $boolean
      * @param  bool  $not
@@ -86,7 +87,7 @@ class BinaryUuidBuilder extends Builder
      *
      * Automatically converts arrays of UUID strings to binary format.
      *
-     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @param  Expression|string  $column
      * @param  mixed  $values
      * @param  string  $boolean
      * @return $this

@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-use Dyrynda\Database\Support\LaravelModelUuidServiceProvider;
+use Dyrynda\Database\Support\BinaryUuidBuilder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use PHPUnit\Framework\Attributes\Test;
 use Ramsey\Uuid\Uuid;
 use Tests\Fixtures\BinaryUuidPost;
 use Tests\Fixtures\BinaryUuidProfile;
 use Tests\Fixtures\BinaryUuidUser;
+use Tests\Fixtures\EfficientUuidPost;
 
 beforeEach(function () {
     // Create test tables with binary UUID columns

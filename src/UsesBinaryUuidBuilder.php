@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Dyrynda\Database\Support;
 
+use Illuminate\Database\Query\Builder;
+
 /**
  * Enables binary UUID relationship support.
  *
@@ -48,7 +50,7 @@ trait UsesBinaryUuidBuilder
      * This method is called automatically by Eloquent when building queries.
      * It returns our custom BinaryUuidBuilder to handle UUID binary conversions.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  Builder  $query
      * @return BinaryUuidBuilder<static>
      */
     public function newEloquentBuilder($query): BinaryUuidBuilder
