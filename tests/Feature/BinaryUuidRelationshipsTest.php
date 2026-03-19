@@ -38,7 +38,6 @@ afterEach(function () {
     Schema::dropIfExists('binary_uuid_profiles');
     Schema::dropIfExists('binary_uuid_posts');
     Schema::dropIfExists('binary_uuid_users');
-
 });
 
 it('can create model with binary uuid primary key', function () {
@@ -371,4 +370,132 @@ it('handles complex nested queries', function () {
     });
 });
 
+it('returns BinaryUuidBuilder from newEloquentBuilder', function () {
+    $builder = BinaryUuidUser::query();
+
+    expect($builder)->toBeInstanceOf(BinaryUuidBuilder::class);
+});
+
+it('handles closure based where with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    BinaryUuidUser::create(['name' => 'User 2']);
+
+    $found = BinaryUuidUser::where(function ($query) use ($user1) {
+        $query->where('id', $user1->id);
+    })->first();
+
+    expect($found)
+        ->not->toBeNull()
+        ->id->toEqual($user1->id);
+});
+
+it('handles findOrFail with valid binary uuid', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+
+    $found = BinaryUuidUser::findOrFail($user->id);
+
+    expect($found)
+        ->not->toBeNull()
+        ->id->toEqual($user->id);
+});
+
+it('throws ModelNotFoundException for findOrFail with non existent uuid', function () {
+    BinaryUuidUser::create(['name' => 'Test User']);
+
+    BinaryUuidUser::findOrFail('00000000-0000-0000-0000-000000000000');
+})->throws(ModelNotFoundException::class);
+
+it('handles update through binary uuid where clause', function () {
+    $user = BinaryUuidUser::create(['name' => 'Original']);
+
+    BinaryUuidUser::where('id', $user->id)->update(['name' => 'Updated']);
+
+    $found = BinaryUuidUser::find($user->id);
+
+    expect($found)->name->toEqual('Updated');
+});
+
+it('handles delete through binary uuid where clause', function () {
+    $user = BinaryUuidUser::create(['name' => 'To Delete']);
+
+    BinaryUuidUser::where('id', $user->id)->delete();
+
+    expect(BinaryUuidUser::find($user->id))->toBeNull();
+});
+
+it('handles whereHas with binary uuid relationships', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'Author']);
+    BinaryUuidUser::create(['name' => 'Reader']);
+
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1']);
+
+    $usersWithPosts = BinaryUuidUser::whereHas('posts')->get();
+
+    expect($usersWithPosts)
+        ->toHaveCount(1)
+        ->first()->id->toEqual($user1->id);
+});
+
+it('handles has count constraint with binary uuid relationships', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'Author']);
+    BinaryUuidUser::create(['name' => 'Reader']);
+
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1']);
+    BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 2']);
+
+    $usersWithMultiplePosts = BinaryUuidUser::has('posts', '>=', 2)->get();
+
+    expect($usersWithMultiplePosts)
+        ->toHaveCount(1)
+        ->first()->id->toEqual($user1->id);
+});
+
+it('handles whereIn on non uuid column normally', function () {
+    BinaryUuidUser::create(['name' => 'Alice']);
+    BinaryUuidUser::create(['name' => 'Bob']);
+    BinaryUuidUser::create(['name' => 'Charlie']);
+
+    $found = BinaryUuidUser::whereIn('name', ['Alice', 'Charlie'])->get();
+
+    expect($found)->toHaveCount(2);
+});
+
+it('handles orWhereIn with binary uuid', function () {
+    $user1 = BinaryUuidUser::create(['name' => 'User 1']);
+    BinaryUuidUser::create(['name' => 'User 2']);
+    $user3 = BinaryUuidUser::create(['name' => 'User 3']);
+
+    $found = BinaryUuidUser::where('name', 'nonexistent')
+        ->orWhereIn('id', [$user1->id, $user3->id])
+        ->get();
+
+    expect($found)
+        ->toHaveCount(2)
+        ->contains('id', $user1->id)->toBeTrue()
+        ->contains('id', $user3->id)->toBeTrue();
+});
+
+it('handles uppercase uuid strings in where clause', function () {
+    $user = BinaryUuidUser::create(['name' => 'Test User']);
+    $uppercaseUuid = strtoupper($user->id);
+
+    $found = BinaryUuidUser::where('id', $uppercaseUuid)->first();
+
+    expect($found)
+        ->not->toBeNull()
+        ->id->toEqual($user->id);
+});
+
+it('does not affect models without UsesBinaryUuidBuilder trait', function () {
+    // EfficientUuidPost uses EfficientUuid cast but NOT UsesBinaryUuidBuilder
+    $post = EfficientUuidPost::create([
+        'title' => 'test post',
+        'efficient_uuid' => '8ab48e77-d9cd-4fe7-ace5-a5a428590c18',
     ]);
+
+    $found = EfficientUuidPost::whereUuid('8ab48e77-d9cd-4fe7-ace5-a5a428590c18', 'efficient_uuid')->first();
+
+    expect($found)
+        ->not->toBeNull()
+        ->efficient_uuid->toEqual('8ab48e77-d9cd-4fe7-ace5-a5a428590c18');
+});
