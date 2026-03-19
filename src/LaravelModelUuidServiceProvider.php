@@ -6,6 +6,9 @@ use Dyrynda\Database\Support\Exceptions\UnknownGrammarClass;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\ColumnDefinition;
 use Illuminate\Database\Schema\Grammars\Grammar;
+use Illuminate\Database\Schema\Grammars\MySqlGrammar;
+use Illuminate\Database\Schema\Grammars\PostgresGrammar;
+use Illuminate\Database\Schema\Grammars\SQLiteGrammar;
 use Illuminate\Support\Fluent;
 use Spatie\LaravelPackageTools\Commands\InstallCommand;
 use Spatie\LaravelPackageTools\Package;
@@ -26,10 +29,10 @@ class LaravelModelUuidServiceProvider extends PackageServiceProvider
     public function packageRegistered()
     {
         Grammar::macro('typeEfficientUuid', function (Fluent $column) {
-            return match (class_basename(static::class)) {
-                'MySqlGrammar' => sprintf('binary(%d)', $column->length ?? 16),
-                'PostgresGrammar' => 'bytea',
-                'SQLiteGrammar' => 'blob(256)',
+            return match (true) {
+                $this instanceof MySqlGrammar => sprintf('binary(%d)', $column->length ?? 16),
+                $this instanceof PostgresGrammar => 'bytea',
+                $this instanceof SQLiteGrammar => 'blob(256)',
                 default => throw new UnknownGrammarClass
             };
         });
