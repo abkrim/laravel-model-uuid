@@ -142,8 +142,9 @@ it('handles reverse eager loading with binary uuid', function () {
     BinaryUuidPost::create(['user_id' => $user1->id, 'title' => 'Post 1.2']);
     BinaryUuidPost::create(['user_id' => $user2->id, 'title' => 'Post 2.1']);
 
-    // Eager load posts on users
-    $users = BinaryUuidUser::with('posts')->get();
+    // Eager load posts on users - order by name for deterministic results
+    // (binary UUID key ordering differs between SQLite and MySQL)
+    $users = BinaryUuidUser::with('posts')->orderBy('name')->get();
 
     expect($users)->toHaveCount(2);
 
