@@ -1,92 +1,77 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
-use PHPUnit\Framework\Attributes\Test;
 use Tests\Fixtures\CustomUuidRouteBoundPost;
 use Tests\Fixtures\MultipleUuidRouteBoundPost;
 use Tests\Fixtures\UuidRouteBoundPost;
-use Tests\TestCase;
 
-class BindUuidTest extends TestCase
-{
-    #[Test]
-    public function it_binds_to_default_uuid_field()
-    {
-        $post = factory(UuidRouteBoundPost::class)->create();
+use function Pest\Laravel\get;
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (UuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('binds to default uuid field', function () {
+    $post = factory(UuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->uuid)->assertSuccessful();
-        $this->get(route('posts.show', $post))->assertSuccessful();
-    }
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (UuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
 
-    #[Test]
-    public function it_fails_on_invalid_default_uuid_field_value()
-    {
-        $post = factory(UuidRouteBoundPost::class)->create();
+    get("/posts/{$post->uuid}")->assertSuccessful();
+    get(route('posts.show', $post))->assertSuccessful();
+});
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (UuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('fails on invalid default uuid field value', function () {
+    $post = factory(UuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->custom_uuid)->assertNotFound();
-        $this->get(route('posts.show', $post->custom_uuid))->assertNotFound();
-    }
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (UuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
 
-    #[Test]
-    public function it_binds_to_custom_uuid_field()
-    {
-        $post = factory(CustomUuidRouteBoundPost::class)->create();
+    get("/posts/{$post->custom_uuid}")->assertNotFound();
+    get(route('posts.show', $post->custom_uuid))->assertNotFound();
+});
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (CustomUuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('binds to custom uuid field', function () {
+    $post = factory(CustomUuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->custom_uuid)->assertSuccessful();
-        $this->get(route('posts.show', $post))->assertSuccessful();
-    }
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (CustomUuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
 
-    #[Test]
-    public function it_fails_on_invalid_custom_uuid_field_value()
-    {
-        $post = factory(CustomUuidRouteBoundPost::class)->create();
+    get("/posts/{$post->custom_uuid}")->assertSuccessful();
+    get(route('posts.show', $post))->assertSuccessful();
+});
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (CustomUuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('fails on invalid custom uuid field value', function () {
+    $post = factory(CustomUuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->uuid)->assertNotFound();
-        $this->get(route('posts.show', $post->uuid))->assertNotFound();
-    }
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post}', function (CustomUuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
 
-    #[Test]
-    public function it_binds_to_declared_uuid_column_instead_of_default_when_custom_key_used()
-    {
-        $post = factory(MultipleUuidRouteBoundPost::class)->create();
+    get("/posts/{$post->uuid}")->assertNotFound();
+    get(route('posts.show', $post->uuid))->assertNotFound();
+});
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post:custom_uuid}', function (MultipleUuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('binds to declared uuid column instead of default when custom key used', function () {
+    $post = factory(MultipleUuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->custom_uuid)->assertSuccessful();
-        $this->get(route('posts.show', $post))->assertSuccessful();
-    }
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post:custom_uuid}', function (MultipleUuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
 
-    #[Test]
-    public function it_fails_on_invalid_uuid_when_custom_route_key_used()
-    {
-        $post = factory(MultipleUuidRouteBoundPost::class)->create();
+    get("/posts/{$post->custom_uuid}")->assertSuccessful();
+    get(route('posts.show', $post))->assertSuccessful();
+});
 
-        Route::middleware(SubstituteBindings::class)->get('/posts/{post:custom_uuid}', function (MultipleUuidRouteBoundPost $post) {
-            return $post;
-        })->name('posts.show');
+it('fails on invalid uuid when custom route key used', function () {
+    $post = factory(MultipleUuidRouteBoundPost::class)->create();
 
-        $this->get('/posts/'.$post->uuid)->assertNotFound();
-        $this->get(route('posts.show', $post->uuid))->assertNotFound();
-    }
-}
+    Route::middleware(SubstituteBindings::class)->get('/posts/{post:custom_uuid}', function (MultipleUuidRouteBoundPost $post) {
+        return $post;
+    })->name('posts.show');
+
+    get("/posts/{$post->uuid}")->assertNotFound();
+    get(route('posts.show', $post->uuid))->assertNotFound();
+});

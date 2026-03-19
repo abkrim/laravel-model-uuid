@@ -1,27 +1,20 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
 use Illuminate\Database\Schema\Blueprint;
-use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\MocksDatabaseConnection;
-use Tests\TestCase;
 
-class DatabaseSQLiteSchemaGrammarTest extends TestCase
-{
-    use MocksDatabaseConnection;
+uses(MocksDatabaseConnection::class);
 
-    #[Test]
-    public function test_adding_uuid()
-    {
-        $blueprint = new Blueprint($this->mockConnection('SQLite'), 'users', function ($table) {
-            $table->uuid('foo');
-            $table->efficientUuid('bar');
-        });
+test('adding uuid', function () {
+    $blueprint = new Blueprint($this->mockConnection('SQLite'), 'users', function ($table) {
+        $table->uuid('foo');
+        $table->efficientUuid('bar');
+    });
 
-        $this->assertEquals(
-            ['alter table "users" add column "foo" varchar not null', 'alter table "users" add column "bar" blob(256) not null'],
-            $blueprint->toSql()
-        );
-    }
-}
+    expect($blueprint->toSql())->toEqual([
+        'alter table "users" add column "foo" varchar not null',
+        'alter table "users" add column "bar" blob(256) not null',
+    ]);
+});

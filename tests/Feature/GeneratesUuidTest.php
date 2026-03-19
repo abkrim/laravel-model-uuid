@@ -1,90 +1,66 @@
 <?php
 
-namespace Tests\Feature;
+declare(strict_types=1);
 
 use Dyrynda\Database\Support\GeneratesUuid;
 use Illuminate\Support\Facades\Config;
-use PHPUnit\Framework\Attributes\Test;
-use Tests\TestCase;
 
-class GeneratesUuidTest extends TestCase
-{
-    #[Test]
-    public function it_gets_default_column_name()
+it('gets default column name', function () {
+    $testModelThatGeneratesUuid = new class
     {
-        $testModelThatGeneratesUuid = new class
-        {
-            use GeneratesUuid;
-        };
+        use GeneratesUuid;
+    };
 
-        $this->assertSame(
-            $testModelThatGeneratesUuid->uuidColumn(),
-            'uuid',
-            'The UUID column should be "uuid" when no default is configured.'
-        );
+    expect($testModelThatGeneratesUuid->uuidColumn())
+        ->toBe('uuid', 'The UUID column should be "uuid" when no default is configured.');
 
-        Config::set('model-uuid.column_name', 'uuid_custom');
-        $this->assertSame(
-            $testModelThatGeneratesUuid->uuidColumn(),
-            'uuid_custom',
-            'The UUID column should match the configured value.'
-        );
-    }
+    Config::set('model-uuid.column_name', 'uuid_custom');
 
-    #[Test]
-    public function it_inherits_uuid_version_from_config()
+    expect($testModelThatGeneratesUuid->uuidColumn())
+        ->toBe('uuid_custom', 'The UUID column should match the configured value.');
+});
+
+it('inherits uuid version from config', function () {
+    Config::set('model-uuid.uuid_version', 'uuid1');
+
+    $testClass = new class
     {
-        Config::set('model-uuid.uuid_version', 'uuid1');
+        use GeneratesUuid;
+    };
+    expect($testClass)->resolveUuidVersion()->toBe('uuid1');
+});
+it('defaults to uuid4 when config not set', function () {
+    Config::set('model-uuid.uuid_version', null);
 
-        $testClass = new class
-        {
-            use GeneratesUuid;
-        };
-
-        $this->assertSame('uuid1', $testClass->resolveUuidVersion());
-    }
-
-    #[Test]
-    public function it_defaults_to_uuid4_when_config_not_set()
+    $testClass = new class
     {
-        Config::set('model-uuid.uuid_version', null);
+        use GeneratesUuid;
+    };
+    expect($testClass)->resolveUuidVersion()->toBe('uuid4');
+});
+it('defaults to uuid4 when config is empty', function () {
+    Config::set('model-uuid.uuid_version', '');
 
-        $testClass = new class
-        {
-            use GeneratesUuid;
-        };
-
-        $this->assertSame('uuid4', $testClass->resolveUuidVersion());
-    }
-
-    #[Test]
-    public function it_defaults_to_uuid4_when_config_is_empty()
+    $testClass = new class
     {
-        Config::set('model-uuid.uuid_version', '');
+        use GeneratesUuid;
+    };
 
-        $testClass = new class
-        {
-            use GeneratesUuid;
-        };
+    expect($testClass)->resolveUuidVersion()->toBe('uuid4');
+});
 
-        $this->assertSame('uuid4', $testClass->resolveUuidVersion());
-    }
+it('uses model definition as highest precedence', function () {
+    Config::set('model-uuid.uuid_version', 'uuid7');
 
-    #[Test]
-    public function it_uses_model_definition_as_highest_precedence()
+    $testClass = new class
     {
-        Config::set('model-uuid.uuid_version', 'uuid7');
+        use GeneratesUuid;
 
-        $testClass = new class
+        public function uuidVersion(): ?string
         {
-            use GeneratesUuid;
+            return 'uuid6';
+        }
+    };
 
-            public function uuidVersion(): ?string
-            {
-                return 'uuid6';
-            }
-        };
-
-        $this->assertSame('uuid6', $testClass->resolveUuidVersion());
-    }
-}
+    expect($testClass)->resolveUuidVersion()->toBe('uuid6');
+});
