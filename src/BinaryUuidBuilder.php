@@ -98,6 +98,36 @@ class BinaryUuidBuilder extends Builder
     }
 
     /**
+     * Add an "or where in" clause to the query.
+     *
+     * Ensures UUID binary conversion is applied when using orWhereIn,
+     * which would otherwise bypass the Eloquent-level whereIn override.
+     *
+     * @param  Expression|string  $column
+     * @param  mixed  $values
+     * @return $this
+     */
+    public function orWhereIn($column, $values)
+    {
+        return $this->whereIn($column, $values, 'or');
+    }
+
+    /**
+     * Add an "or where not in" clause to the query.
+     *
+     * Ensures UUID binary conversion is applied when using orWhereNotIn,
+     * which would otherwise bypass the Eloquent-level whereIn override.
+     *
+     * @param  Expression|string  $column
+     * @param  mixed  $values
+     * @return $this
+     */
+    public function orWhereNotIn($column, $values)
+    {
+        return $this->whereIn($column, $values, 'or', true);
+    }
+
+    /**
      * Check if column should convert UUID string to binary.
      */
     protected function shouldConvertToUuidBinary(string $column, mixed $value): bool
